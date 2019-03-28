@@ -7,16 +7,19 @@ contract ticketingSystem {
     {
         bytes32 name;
         address owner;
-        int artistCategory;
-        int ticketSold;
+        uint artistCategory;
+        uint ticketSold;
+        uint moneyCollected;
+        uint totalTicketSold;
     }
 
     struct Venue
     {
         bytes32 name;
-        int capacity;
-        int standardComission;
+        uint capacity;
+        uint standardComission;
         address owner;
+        uint moneyCollected;
     }
 
     struct Concert
@@ -29,6 +32,7 @@ contract ticketingSystem {
         uint venueId;
         bool validatedByArtist;
         bool validatedByVenue;
+        address cachOutAddress;
     }
 
     struct Ticket
@@ -38,11 +42,12 @@ contract ticketingSystem {
         bool isAvailable;
         bool isAvailableForSale;
         uint amountPaid;
+        uint ticketId;
     }
-    uint nextConcertId=1;
+    uint concertId=1;
     uint artistId = 1;
     uint venueId =1;
-    uint nextTicketId=1;
+    uint ticketId=1;
     uint oneDay = 60*60*24;
      
     mapping (uint => Artist) public artistsRegister;
@@ -50,21 +55,21 @@ contract ticketingSystem {
     mapping (uint => Concert) public concertsRegister;
     mapping (uint => Ticket) public ticketsRegister;
 
-    function createArtist(bytes32 _name, int _artistCategory ) public {
+    function createArtist(bytes32 _name, uint _artistCategory ) public {
         artistsRegister[artistId].name = _name;
         artistsRegister[artistId].artistCategory = _artistCategory;
         artistsRegister[artistId].owner = msg.sender;
         artistId += 1;
     }
 
-    function modifyArtist(uint _artistId,bytes32 _newName, int _newArtistCategory, address _newOwner) public {
+    function modifyArtist(uint _artistId,bytes32 _newName, uint _newArtistCategory, address _newOwner) public {
         require(msg.sender == artistsRegister[_artistId].owner);
         artistsRegister[_artistId].name = _newName;
         artistsRegister[_artistId].artistCategory = _newArtistCategory;
         artistsRegister[_artistId].owner = _newOwner;
     }
     
-    function createVenue(bytes32 _name, int _capacity, int _comission) public {
+    function createVenue(bytes32 _name, uint _capacity, uint _comission) public {
         venuesRegister[venueId].name = _name;
         venuesRegister[venueId].capacity = _capacity;
         venuesRegister[venueId].standardComission = _comission;
@@ -72,7 +77,7 @@ contract ticketingSystem {
         venueId += 1;
     }
 
-    function modifyVenue(uint _venueId,bytes32 _newVenueName, int _newVenueCapacity,int _newVenueComission, address _newVenueAddress) public {
+    function modifyVenue(uint _venueId,bytes32 _newVenueName, uint _newVenueCapacity,uint _newVenueComission, address _newVenueAddress) public {
         require(msg.sender == venuesRegister[_venueId].owner);
         venuesRegister[_venueId].name = _newVenueName;
         venuesRegister[_venueId].capacity = _newVenueCapacity;
@@ -80,19 +85,20 @@ contract ticketingSystem {
         venuesRegister[_venueId].owner = _newVenueAddress;
     }
 
-    function createConcert(uint _artistId, uint _venueId, uint _concertDate, uint _ticketPrice) public returns (uint concertId) {
+    function createConcert(uint _artistId, uint _venueId, uint _concertDate, uint _ticketPrice) public returns (uint concertIdTR) {
         require(_concertDate >= now);
         require(artistsRegister[_artistId].owner != address(0));
         require(venuesRegister[_venueId].owner != address(0));
-        concertsRegister[nextConcertId].concertDate = _concertDate;
-        concertsRegister[nextConcertId].artistId = _artistId;
-        concertsRegister[nextConcertId].venueId = _venueId;
-        concertsRegister[nextConcertId].ticketPrice = _ticketPrice;
-        concertsRegister[nextConcertId].totalSoldTicket=0;
-        concertsRegister[nextConcertId].totalMoneyCollected=0;
-        validateConcert(nextConcertId);
-        concertId = nextConcertId;
-        nextConcertId +=1;
+        concertsRegister[concertId].concertDate = _concertDate;
+        concertsRegister[concertId].artistId = _artistId;
+        concertsRegister[concertId].venueId = _venueId;
+        concertsRegister[concertId].ticketPrice = _ticketPrice;
+        concertsRegister[concertId].totalSoldTicket=0;
+        concertsRegister[concertId].totalMoneyCollected=0;
+        concertsRegister[concertId].cachOutAddress=msg.sender;
+        validateConcert(concertId);
+        concertIdTR = concertId;
+        concertId +=1;
   }
     function validateConcert(uint _concertId) public{
         require(concertsRegister[_concertId].concertDate >= now);
@@ -106,13 +112,13 @@ contract ticketingSystem {
         }
   }
 
-     function emitTicket(uint _concertId, address payable _ticketOwner) public returns (uint ticketId) {
-        require(artistsRegister[concertsRegister[_concertId].artistId].owner == msg.sender);
-        ticketsRegister[_concertId].owner = _ticketOwner;
-        ticketsRegister[_concertId].isAvailable = true;
+     function emitTicket(uint _concertId, address payable _ticketOwner) public returns (uint ticketIdTR) {
+        require(artistsRegister[concertsRegister[ticketId].artistId].owner == msg.sender);
+        ticketsRegister[ticketId].owner = _ticketOwner;
+        ticketsRegister[ticketId].isAvailable = true;
         concertsRegister[_concertId].totalSoldTicket=concertsRegister[_concertId].totalSoldTicket+1;
-        ticketId=nextTicketId;
-        nextTicketId+=1;
+        ticketIdTR=ticketId;
+        ticketId ++;
      }
 
      function useTicket(uint _ticketId) public{
@@ -126,15 +132,28 @@ contract ticketingSystem {
      function buyTicket(uint _concertId) public payable{
          concertsRegister[_concertId].totalSoldTicket += 1;
          concertsRegister[_concertId].totalMoneyCollected= concertsRegister[_concertId].totalSoldTicket * concertsRegister[_concertId].ticketPrice ;
-         ticketsRegister[_concertId].concertId=_concertId;
-         ticketsRegister[_concertId].amountPaid= concertsRegister[_concertId].ticketPrice;
-         ticketsRegister[_concertId].isAvailable=true;
-         ticketsRegister[_concertId].owner=msg.sender;
-         ticketsRegister[_concertId].isAvailableForSale=false;
+         ticketsRegister[ticketId].concertId=_concertId;
+         ticketsRegister[ticketId].amountPaid= concertsRegister[ticketId].ticketPrice;
+         ticketsRegister[ticketId].isAvailable=true;
+         ticketsRegister[ticketId].owner=msg.sender;
+         ticketsRegister[ticketId].isAvailableForSale=false;
+         ticketId++;
      }
 
      function transferTicket(uint _ticketId, address payable _newOwner) public {
          require(msg.sender==ticketsRegister[_ticketId].owner);
          ticketsRegister[_ticketId].owner= _newOwner;
      }
+
+     /*function getBalance() {
+
+     }*/
+
+     function cachOutConcert(uint _concertId, address payable _cachOutAddress) public {
+         require(concertsRegister[_concertId].concertDate <= now);
+         require(concertsRegister[_concertId].cachOutAddress == msg.sender);
+         uint venueShare = concertsRegister[_concertId].totalMoneyCollected * venuesRegister[venueId].standardComission/10000;
+         uint artistShare = concertsRegister[_concertId].totalMoneyCollected - venueShare;
+         concertsRegister[_concertId].totalMoneyCollected=0;
+     }    
 }
